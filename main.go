@@ -29,6 +29,8 @@ func loop() {
 	for {
 		select {
 		case <-render.C:
+			window.Clear()
+
 			renderer.Begin()
 			g.Render(renderer)
 			renderer.Flush()
