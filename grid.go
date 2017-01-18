@@ -1,13 +1,24 @@
+// Copyright 2017 The bluemun Authors. All rights reserved.
+// Use of this source code is governed by a GNU GENERAL PUBLIC LICENSE
+// license that can be found in the LICENSE file.
+
+// Package tetris grid.go Defines a grid struct used to store tetris blocks.
 package main
 
-type grid struct {
+import (
+	"github.com/bluemun/graphics"
+)
+
+// Grid holds blocks that are in the game.
+type Grid struct {
 	activePiece   *piece
 	data          [][]*block
 	rows, columns int
 }
 
-func CreateGrid(rows, columns int) *grid {
-	g := new(grid)
+// CreateGrid creates a grid object correctly.
+func CreateGrid(rows, columns int) *Grid {
+	g := new(Grid)
 
 	for y := 0; y < rows; y++ {
 		var row []*block
@@ -23,28 +34,33 @@ func CreateGrid(rows, columns int) *grid {
 	return g
 }
 
-func (g *grid) SpawnPiece() bool {
-	g.activePiece = CreatePiece(g)
+// SpawnPiece spawns a new piece at the top of the grid.
+func (g *Grid) SpawnPiece() bool {
+	g.activePiece = createPiece(g)
 	g.activePiece.SetPosition(g.columns/2, 1)
 	return g.activePiece.TryMove(0, 0)
 }
 
-func (g *grid) Move(x, y int) {
+// Move moves the active piece the given vector if possible.
+func (g *Grid) Move(x, y int) {
 	g.activePiece.TryMove(x, y)
 }
 
-func (g *grid) IntegrateBlock(b *block) {
+// IntegrateBlock Adds a given blodk to the grid.
+func (g *Grid) IntegrateBlock(b *block) {
 	g.data[b.Y][b.X] = b
 }
 
-func (g *grid) Render() {
+// Render Renders the whole grid.
+func (g *Grid) Render(r *graphics.Renderer) {
+	r.DrawRectangle(0, 0, 1, 1)
 }
 
-func (g *grid) String() string {
+func (g *Grid) String() string {
 	var str string
 	for y, row := range g.data {
 		for x, cell := range row {
-			var cb *block = cell
+			var cb = cell
 			if g.activePiece != nil {
 				for _, ab := range g.activePiece.b {
 					if ab != nil && ab.X == x && ab.Y == y {

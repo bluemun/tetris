@@ -1,3 +1,8 @@
+// Copyright 2017 The bluemun Authors. All rights reserved.
+// Use of this source code is governed by a GNU GENERAL PUBLIC LICENSE
+// license that can be found in the LICENSE file.
+
+// Package tetris block.go Defines blocks and pieces used by the grid.
 package main
 
 type block struct {
@@ -5,11 +10,12 @@ type block struct {
 }
 
 type piece struct {
-	g *grid
+	g *Grid
 	b [4]*block
 }
 
-func CreatePiece(g *grid) *piece {
+// CreatePiece creates a piece to be used with the grid.
+func createPiece(g *Grid) *piece {
 	p := new(piece)
 	p.g = g
 	p.b[0] = &block{X: 0, Y: 1}
@@ -32,7 +38,7 @@ func (p *piece) TryMove(x, y int) bool {
 			return false
 		}
 
-		var cell *block = p.g.data[pb.Y+y][pb.X+x]
+		var cell = p.g.data[pb.Y+y][pb.X+x]
 		if cell == nil {
 			continue
 		}
