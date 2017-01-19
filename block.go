@@ -5,13 +5,18 @@
 // Package tetris block.go Defines blocks and pieces used by the grid.
 package main
 
+import (
+	"github.com/bluemun/engine/graphics/render"
+)
+
 type block struct {
 	X, Y int
 }
 
 type piece struct {
-	g *Grid
-	b [4]*block
+	X, Y int
+	g    *Grid
+	b    [4]*block
 }
 
 // CreatePiece creates a piece to be used with the grid.
@@ -26,19 +31,17 @@ func createPiece(g *Grid) *piece {
 }
 
 func (p *piece) SetPosition(x, y int) {
-	for _, pb := range p.b {
-		pb.X = x
-		pb.Y = y
-	}
+	p.X = x
+	p.Y = y
 }
 
 func (p *piece) TryMove(x, y int) bool {
 	for _, pb := range p.b {
-		if pb.X+x < 0 || pb.X+x >= p.g.rows || pb.Y+y < 0 || pb.Y+y >= p.g.columns {
+		if p.X+pb.X+x < 0 || p.X+pb.X+x >= p.g.columns || p.Y+pb.Y+y < 0 || p.Y+pb.Y+y >= p.g.rows {
 			return false
 		}
 
-		var cell = p.g.data[pb.Y+y][pb.X+x]
+		var cell = p.g.data[p.Y+pb.Y+y][p.X+pb.X+x]
 		if cell == nil {
 			continue
 		}
@@ -52,11 +55,8 @@ func (p *piece) TryMove(x, y int) bool {
 		return false
 	}
 
-	for _, pb := range p.b {
-		pb.X += x
-		pb.Y += y
-	}
-
+	p.X += x
+	p.Y += y
 	return true
 }
 
@@ -66,9 +66,19 @@ func (p *piece) TryRotate() {
 
 func (p *piece) Integrate() {
 	for i, pb := range p.b {
+		pb.X += p.X
+		pb.Y += p.Y
 		p.g.IntegrateBlock(pb)
 		p.b[i] = nil
 	}
 
 	p.g = nil
+}
+
+// Render Renders the whole grid.
+func (p *piece) Render(r render.Renderer) {
+	for _, block := range p.b {
+		//r.DrawRectangle(float32(p.X+block.X), float32(p.Y+block.Y), 1, 1)
+		r.DrawRectangle(float32(p.X+block.X)+0.1, float32(p.Y+block.Y)+0.1, 1-0.1, 1-0.1)
+	}
 }

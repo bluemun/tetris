@@ -23,8 +23,15 @@ func main() {
 
 func loop() {
 	window := graphics.CreateWindow()
+	camera := new(render.Camera)
+	camera.X = 5
+	camera.Y = 9
+	camera.Width = 20
+	camera.Height = 20
+	camera.Activate()
 	renderer := render.CreateRenderer2D(10000, 10000)
 	g := CreateGrid(18, 10)
+	g.SpawnPiece()
 	render := time.NewTicker(time.Second / 60)
 	update := time.NewTicker(time.Second / 60)
 
@@ -40,6 +47,7 @@ func loop() {
 
 			window.SwapBuffers()
 		case <-update.C:
+			g.Update()
 			window.PollEvents()
 			if window.Closed() {
 				os.Exit(0)

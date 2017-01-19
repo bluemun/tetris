@@ -11,9 +11,9 @@ import (
 
 // Grid holds blocks that are in the game.
 type Grid struct {
-	activePiece   *piece
-	data          [][]*block
-	rows, columns int
+	activePiece                *piece
+	data                       [][]*block
+	rows, columns, gravCounter int
 }
 
 // CreateGrid creates a grid object correctly.
@@ -37,7 +37,7 @@ func CreateGrid(rows, columns int) *Grid {
 // SpawnPiece spawns a new piece at the top of the grid.
 func (g *Grid) SpawnPiece() bool {
 	g.activePiece = createPiece(g)
-	g.activePiece.SetPosition(g.columns/2, 1)
+	g.activePiece.SetPosition(g.columns/2, g.rows-1)
 	return g.activePiece.TryMove(0, 0)
 }
 
@@ -51,9 +51,32 @@ func (g *Grid) IntegrateBlock(b *block) {
 	g.data[b.Y][b.X] = b
 }
 
+// Update Updates the whole grid.
+func (g *Grid) Update() {
+	if g.gravCounter == 30 {
+		g.gravCounter = 0
+		if !g.activePiece.TryMove(0, -1) {
+			g.activePiece.Integrate()
+			g.SpawnPiece()
+		}
+	}
+
+	g.gravCounter++
+}
+
 // Render Renders the whole grid.
 func (g *Grid) Render(r render.Renderer) {
-	r.DrawRectangle(0, 0, 1, 1)
+	for _, row := range g.data {
+		for _, cell := range row {
+			if cell != nil {
+				r.DrawRectangle(float32(cell.X)+0.1, float32(cell.Y)+0.1, 1-0.1, 1-0.1)
+			}
+		}
+	}
+
+	if g.activePiece != nil {
+		g.activePiece.Render(r)
+	}
 }
 
 func (g *Grid) String() string {
