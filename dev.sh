@@ -32,6 +32,9 @@ while [ $running = 0 ]; do
       echo "Installing go-glfw"
       go get -u github.com/go-gl/glfw/v3.2/glfw
       echo "go-glfw installed"
+      echo "Installing go-mgl32"
+      go get github.com/go-gl/mathgl/mgl32
+      echo "go-mgl32 installed"
       echo "Installing go-logging"
       go get github.com/op/go-logging
       echo "go-logging installed"
