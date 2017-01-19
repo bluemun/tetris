@@ -75,10 +75,10 @@ func (p *piece) Integrate() {
 	p.g = nil
 }
 
-// Render Renders the whole grid.
+// Render Renders the piece.
 func (p *piece) Render(r render.Renderer) {
 	for _, block := range p.b {
 		//r.DrawRectangle(float32(p.X+block.X), float32(p.Y+block.Y), 1, 1)
-		r.DrawRectangle(float32(p.X+block.X)+0.1, float32(p.Y+block.Y)+0.1, 1-0.1, 1-0.1)
+		r.DrawRectangle(float32(p.X+block.X)+0.1, float32(p.Y+block.Y)+0.1, 1-0.1, 1-0.1, render.ToColor(0xff, 0x44, 0x00, 0x00))
 	}
 }

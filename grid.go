@@ -69,7 +69,7 @@ func (g *Grid) Render(r render.Renderer) {
 	for _, row := range g.data {
 		for _, cell := range row {
 			if cell != nil {
-				r.DrawRectangle(float32(cell.X)+0.1, float32(cell.Y)+0.1, 1-0.1, 1-0.1)
+				r.DrawRectangle(float32(cell.X)+0.1, float32(cell.Y)+0.1, 1-0.1, 1-0.1, render.ToColor(255, 0, 0, 255))
 			}
 		}
 	}
