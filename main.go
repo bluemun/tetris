@@ -6,7 +6,9 @@
 package main
 
 import (
-	"github.com/bluemun/graphics"
+	"github.com/bluemun/engine"
+	"github.com/bluemun/engine/graphics"
+	"github.com/bluemun/engine/graphics/render"
 	"os"
 	"time"
 )
@@ -16,12 +18,12 @@ var stopped = false
 func main() {
 	go loop()
 
-	graphics.Loop()
+	engine.Loop()
 }
 
 func loop() {
 	window := graphics.CreateWindow()
-	renderer := window.GetRenderer()
+	renderer := render.CreateRenderer2D(10000, 10000)
 	g := CreateGrid(18, 10)
 	render := time.NewTicker(time.Second / 60)
 	update := time.NewTicker(time.Second / 60)

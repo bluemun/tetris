@@ -6,7 +6,7 @@
 package main
 
 import (
-	"github.com/bluemun/graphics"
+	"github.com/bluemun/engine/graphics/render"
 )
 
 // Grid holds blocks that are in the game.
@@ -52,7 +52,7 @@ func (g *Grid) IntegrateBlock(b *block) {
 }
 
 // Render Renders the whole grid.
-func (g *Grid) Render(r *graphics.Renderer) {
+func (g *Grid) Render(r render.Renderer) {
 	r.DrawRectangle(0, 0, 1, 1)
 }
 
