@@ -26,8 +26,8 @@ func main() {
 func loop() {
 	window := graphics.CreateWindow()
 	camera := new(render.Camera)
-	camera.X = 5
-	camera.Y = 9
+	camera.X = 0
+	camera.Y = 0
 	camera.Width = 20
 	camera.Height = 20
 	camera.Activate()

@@ -12,15 +12,17 @@ import (
 
 // Grid holds blocks that are in the game.
 type Grid struct {
-	activePiece   *piece
+	x, y          float32
 	data          []bool
 	rows, columns int
-	gravCounter   float32
+	world         *logic.World
 }
 
 // CreateGrid creates a grid object correctly.
 func CreateGrid(rows, columns int) *Grid {
 	g := new(Grid)
+	g.x = -float32(columns) / 2
+	g.y = -float32(rows) / 2
 	g.data = make([]bool, columns+rows*columns, columns+rows*columns)
 	g.rows = rows
 	g.columns = columns
@@ -29,15 +31,8 @@ func CreateGrid(rows, columns int) *Grid {
 }
 
 // SpawnPiece spawns a new piece at the top of the grid.
-func (g *Grid) spawnPiece() bool {
-	g.activePiece = createPiece(g)
-	g.activePiece.SetPosition(float32(g.columns/2), float32(g.rows-1))
-	return g.activePiece.TryMove(0, 0)
-}
-
-// Move moves the active piece the given vector if possible.
-func (g *Grid) Move(x, y float32) {
-	g.activePiece.TryMove(x, y)
+func (g *Grid) spawnPiece() {
+	g.world.Traitmanager.AddTrait(createPiece(g))
 }
 
 // IntegrateBlock Adds a given blodk to the grid.
@@ -47,6 +42,7 @@ func (g *Grid) IntegrateBlock(x, y int) {
 
 // NotifyAdded runs when the grid gets added to a world.
 func (g *Grid) NotifyAdded(world *logic.World) {
+	g.world = world
 	g.spawnPiece()
 }
 
@@ -67,7 +63,7 @@ func (g *Grid) Mesh() *render.Mesh {
 
 // Pos Renderable interface
 func (g *Grid) Pos() (float32, float32) {
-	return 0, 0
+	return g.x, g.y
 }
 
 // Color Renderable interface
@@ -75,20 +71,7 @@ func (g *Grid) Color() uint32 {
 	return render.ToColor(255, 0, 0, 255)
 }
 
-// Tick runs when the world ticks.
-func (g *Grid) Tick(deltaUnit float32) {
-	if g.gravCounter >= 1 {
-		g.gravCounter = 0
-		/*if !g.activePiece.TryMove(0, -1) {
-			g.activePiece.Integrate()
-			g.spawnPiece()
-		}*/
-	}
-
-	g.gravCounter += deltaUnit
-}
-
 // Render2D renders the grid.
 func (g *Grid) Render2D() []render.Renderable {
-	return []render.Renderable{g.activePiece}
+	return []render.Renderable{g}
 }

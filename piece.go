@@ -7,31 +7,66 @@ package main
 
 import (
 	"github.com/bluemun/engine/graphics/render"
+	"github.com/bluemun/engine/logic"
 )
 
 type piece struct {
-	x, y   float32
-	g      *Grid
-	blocks [25]bool
+	x, y        float32
+	gravCounter float32
+	g           *Grid
+	blocks      [25]bool
+	world       *logic.World
 }
 
 // CreatePiece creates a piece to be used with the grid.
 func createPiece(g *Grid) *piece {
 	p := new(piece)
 	p.g = g
-	p.blocks[2+1*5] = true
+	//p.blocks[2+1*5] = true
 	p.blocks[2+2*5] = true
-	p.blocks[2+3*5] = true
-	p.blocks[3+3*5] = true
+	//p.blocks[2+3*5] = true
+	//p.blocks[3+3*5] = true
 	return p
 }
 
+// NotifyAdded runs when the grid gets added to a world.
+func (p *piece) NotifyAdded(world *logic.World) {
+	p.world = world
+	x, y := p.g.Pos()
+	p.SetPosition(x+float32(p.g.columns/2), y+float32(p.g.rows-1))
+	if p.TryMove(0, 0) {
+		//TODO: We have lost.
+	}
+}
+
+// Tick runs when the world ticks.
+func (p *piece) Tick(deltaUnit float32) {
+	if p.gravCounter >= 1 {
+		p.gravCounter = 0
+		x, y := p.Pos()
+		logger.Info("Before move:", x, y)
+		if !p.TryMove(0, -1) {
+			x, y = p.Pos()
+			logger.Info("After move:", x, y)
+			p.Integrate()
+			p.g.spawnPiece()
+		}
+	}
+
+	p.gravCounter += deltaUnit
+}
+
+// Render2D renders the grid.
+func (p *piece) Render2D() []render.Renderable {
+	return []render.Renderable{p}
+}
+
 func (p *piece) Pos() (float32, float32) {
-	return float32(p.x), float32(p.y)
+	return p.x, p.y
 }
 
 func (p *piece) Color() uint32 {
-	return render.ToColor(255, 0, 0, 255)
+	return render.ToColor(255, 0xff, 0, 255)
 }
 
 func (p *piece) Mesh() *render.Mesh {
@@ -58,22 +93,26 @@ func (p *piece) SetPosition(x, y float32) {
 }
 
 func (p *piece) blockPos(i int) (float32, float32) {
-	return float32(p.x + float32(i%5) - 2), float32(p.y + float32(i/5) - 2)
+	return p.x - p.g.x + float32(i%5) - 2, p.y - p.g.y + float32(i/5) - 2 + float32(p.g.rows)/2
 }
 
 func (p *piece) TryMove(x, y float32) bool {
-	for i := range p.blocks {
-		bx, by := p.blockPos(i)
-		if bx+x < 0 || bx+x >= float32(p.g.columns) || by+y < 0 {
-			return false
-		}
+	for i, exists := range p.blocks {
+		if exists {
+			bx, by := p.blockPos(i)
+			bx += x
+			by += y
+			if bx < 0 || bx >= float32(p.g.columns) || by < 0 {
+				return false
+			}
 
-		if by+y >= float32(p.g.rows) {
-			continue
-		}
+			if by >= float32(p.g.rows) {
+				continue
+			}
 
-		if p.g.data[int(x)+int(y)*p.g.columns] {
-			return false
+			if p.g.data[int(bx)+int(by)*p.g.columns] {
+				return false
+			}
 		}
 	}
 
