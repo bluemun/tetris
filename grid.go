@@ -7,27 +7,21 @@ package main
 
 import (
 	"github.com/bluemun/engine/graphics/render"
+	"github.com/bluemun/engine/logic"
 )
 
 // Grid holds blocks that are in the game.
 type Grid struct {
-	activePiece                *piece
-	data                       [][]*block
-	rows, columns, gravCounter int
+	activePiece   *piece
+	data          []bool
+	rows, columns int
+	gravCounter   float32
 }
 
 // CreateGrid creates a grid object correctly.
 func CreateGrid(rows, columns int) *Grid {
 	g := new(Grid)
-
-	for y := 0; y < rows; y++ {
-		var row []*block
-		for x := 0; x < columns; x++ {
-			row = append(row, nil)
-		}
-		g.data = append(g.data, row)
-	}
-
+	g.data = make([]bool, columns+rows*columns, columns+rows*columns)
 	g.rows = rows
 	g.columns = columns
 
@@ -35,72 +29,66 @@ func CreateGrid(rows, columns int) *Grid {
 }
 
 // SpawnPiece spawns a new piece at the top of the grid.
-func (g *Grid) SpawnPiece() bool {
+func (g *Grid) spawnPiece() bool {
 	g.activePiece = createPiece(g)
-	g.activePiece.SetPosition(g.columns/2, g.rows-1)
+	g.activePiece.SetPosition(float32(g.columns/2), float32(g.rows-1))
 	return g.activePiece.TryMove(0, 0)
 }
 
 // Move moves the active piece the given vector if possible.
-func (g *Grid) Move(x, y int) {
+func (g *Grid) Move(x, y float32) {
 	g.activePiece.TryMove(x, y)
 }
 
 // IntegrateBlock Adds a given blodk to the grid.
-func (g *Grid) IntegrateBlock(b *block) {
-	g.data[b.Y][b.X] = b
+func (g *Grid) IntegrateBlock(x, y int) {
+	g.data[x+y*g.columns] = true
 }
 
-// Update Updates the whole grid.
-func (g *Grid) Update() {
-	if g.gravCounter == 30 {
+// NotifyAdded runs when the grid gets added to a world.
+func (g *Grid) NotifyAdded(world *logic.World) {
+	g.spawnPiece()
+}
+
+// Mesh Renderable interface
+func (g *Grid) Mesh() *render.Mesh {
+	mesh := new(render.Mesh)
+	/*for i, exists := range g.data {
+		if exists {
+			x := float32(i%5) - 2
+			y := float32(i/5) - 2
+			mesh.Points = []float32{
+				g.data[i],
+			}
+		}
+	}*/
+	return mesh
+}
+
+// Pos Renderable interface
+func (g *Grid) Pos() (float32, float32) {
+	return 0, 0
+}
+
+// Color Renderable interface
+func (g *Grid) Color() uint32 {
+	return render.ToColor(255, 0, 0, 255)
+}
+
+// Tick runs when the world ticks.
+func (g *Grid) Tick(deltaUnit float32) {
+	if g.gravCounter >= 1 {
 		g.gravCounter = 0
-		if !g.activePiece.TryMove(0, -1) {
+		/*if !g.activePiece.TryMove(0, -1) {
 			g.activePiece.Integrate()
-			g.SpawnPiece()
-		}
+			g.spawnPiece()
+		}*/
 	}
 
-	g.gravCounter++
+	g.gravCounter += deltaUnit
 }
 
-// Render Renders the whole grid.
-func (g *Grid) Render(r render.Renderer) {
-	for _, row := range g.data {
-		for _, cell := range row {
-			if cell != nil {
-				r.DrawRectangle(float32(cell.X)+0.1, float32(cell.Y)+0.1, 1-0.1, 1-0.1, render.ToColor(255, 0, 0, 255))
-			}
-		}
-	}
-
-	if g.activePiece != nil {
-		g.activePiece.Render(r)
-	}
-}
-
-func (g *Grid) String() string {
-	var str string
-	for y, row := range g.data {
-		for x, cell := range row {
-			var cb = cell
-			if g.activePiece != nil {
-				for _, ab := range g.activePiece.b {
-					if ab != nil && ab.X == x && ab.Y == y {
-						cb = ab
-						break
-					}
-				}
-			}
-
-			if cb == nil {
-				str += "o"
-			} else {
-				str += "x"
-			}
-		}
-		str += "\n"
-	}
-
-	return str
+// Render2D renders the grid.
+func (g *Grid) Render2D() []render.Renderable {
+	return []render.Renderable{g.activePiece}
 }

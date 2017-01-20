@@ -6,11 +6,13 @@
 package main
 
 import (
+	"os"
+	"time"
+
 	"github.com/bluemun/engine"
 	"github.com/bluemun/engine/graphics"
 	"github.com/bluemun/engine/graphics/render"
-	"os"
-	"time"
+	"github.com/bluemun/engine/logic"
 )
 
 var stopped = false
@@ -29,25 +31,24 @@ func loop() {
 	camera.Width = 20
 	camera.Height = 20
 	camera.Activate()
-	renderer := render.CreateRenderer2D(10000, 10000)
-	g := CreateGrid(18, 10)
-	g.SpawnPiece()
+
+	world := logic.CreateWorld()
+	renderer := render.CreateRendersTraits2D(world)
+
 	render := time.NewTicker(time.Second / 60)
 	update := time.NewTicker(time.Second / 60)
+
+	g := CreateGrid(18, 10)
+	world.Traitmanager.AddTrait(g)
 
 	for {
 		select {
 		case <-render.C:
 			window.Clear()
-
-			renderer.Begin()
-			g.Render(renderer)
-			renderer.Flush()
-			renderer.End()
-
+			renderer.Render()
 			window.SwapBuffers()
 		case <-update.C:
-			g.Update()
+			world.Tick(1 / 60.0)
 			window.PollEvents()
 			if window.Closed() {
 				os.Exit(0)
