@@ -13,27 +13,27 @@ import (
 type piece struct {
 	x, y        float32
 	gravCounter float32
-	g           *Grid
+	g           Grid
 	blocks      [25]bool
-	world       *logic.World
+	world       logic.World
 }
 
 // CreatePiece creates a piece to be used with the grid.
-func createPiece(g *Grid) *piece {
-	p := new(piece)
-	p.g = g
-	//p.blocks[2+1*5] = true
+func createPiece(g Grid) *piece {
+	p := &piece{g: g}
+	p.blocks[2+1*5] = true
 	p.blocks[2+2*5] = true
-	//p.blocks[2+3*5] = true
-	//p.blocks[3+3*5] = true
+	p.blocks[2+3*5] = true
+	p.blocks[3+3*5] = true
 	return p
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (p *piece) NotifyAdded(world *logic.World) {
-	p.world = world
+func (p *piece) NotifyAdded(owner logic.Actor) {
+	c, r := p.g.Size()
+	p.world = owner.World()
 	x, y := p.g.Pos()
-	p.SetPosition(x+float32(p.g.columns/2), y+float32(p.g.rows-1))
+	p.SetPosition(x+float32(c/2), y+float32(r-1))
 	if p.TryMove(0, 0) {
 		//TODO: We have lost.
 	}
@@ -41,13 +41,9 @@ func (p *piece) NotifyAdded(world *logic.World) {
 
 // Tick runs when the world ticks.
 func (p *piece) Tick(deltaUnit float32) {
-	if p.gravCounter >= 1 {
+	if p.gravCounter >= 0.1 {
 		p.gravCounter = 0
-		x, y := p.Pos()
-		logger.Info("Before move:", x, y)
 		if !p.TryMove(0, -1) {
-			x, y = p.Pos()
-			logger.Info("After move:", x, y)
 			p.Integrate()
 			p.g.spawnPiece()
 		}
@@ -93,24 +89,26 @@ func (p *piece) SetPosition(x, y float32) {
 }
 
 func (p *piece) blockPos(i int) (float32, float32) {
-	return p.x - p.g.x + float32(i%5) - 2, p.y - p.g.y + float32(i/5) - 2 + float32(p.g.rows)/2
+	x, y := p.g.Pos()
+	return p.x - x + float32(i%5) - 2, p.y - y + float32(i/5) - 2
 }
 
 func (p *piece) TryMove(x, y float32) bool {
+	c, r := p.g.Size()
 	for i, exists := range p.blocks {
 		if exists {
 			bx, by := p.blockPos(i)
 			bx += x
 			by += y
-			if bx < 0 || bx >= float32(p.g.columns) || by < 0 {
+			if bx < 0 || bx >= float32(c) || by < 0 {
 				return false
 			}
 
-			if by >= float32(p.g.rows) {
+			if by >= float32(r) {
 				continue
 			}
 
-			if p.g.data[int(bx)+int(by)*p.g.columns] {
+			if p.g.GetBlock(int(bx), int(by)) {
 				return false
 			}
 		}
@@ -126,10 +124,10 @@ func (p *piece) TryRotate() {
 }
 
 func (p *piece) Integrate() {
-	for i := range p.blocks {
-		bx, by := p.blockPos(i)
-		p.g.IntegrateBlock(int(bx), int(by))
+	for i, exists := range p.blocks {
+		if exists {
+			bx, by := p.blockPos(i)
+			p.g.SetBlock(int(bx), int(by))
+		}
 	}
-
-	p.g = nil
 }

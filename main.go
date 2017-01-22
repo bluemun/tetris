@@ -38,8 +38,9 @@ func loop() {
 	render := time.NewTicker(time.Second / 60)
 	update := time.NewTicker(time.Second / 60)
 
-	g := CreateGrid(18, 10)
-	world.Traitmanager.AddTrait(g)
+	world.CreateActor(func() logic.Trait {
+		return CreateGrid(world, 18, 10)
+	})
 
 	for {
 		select {

@@ -11,67 +11,96 @@ import (
 )
 
 // Grid holds blocks that are in the game.
-type Grid struct {
+type Grid interface {
+	logic.TraitNotifyAdded
+	render.TraitRender2D
+	render.Renderable
+
+	Size() (int, int)
+	spawnPiece()
+
+	GetBlock(x, y int) bool
+	SetBlock(x, y int)
+}
+
+type grid struct {
 	x, y          float32
 	data          []bool
 	rows, columns int
-	world         *logic.World
+	world         logic.World
 }
 
 // CreateGrid creates a grid object correctly.
-func CreateGrid(rows, columns int) *Grid {
-	g := new(Grid)
-	g.x = -float32(columns) / 2
-	g.y = -float32(rows) / 2
-	g.data = make([]bool, columns+rows*columns, columns+rows*columns)
-	g.rows = rows
-	g.columns = columns
-
-	return g
+func CreateGrid(world logic.World, rows, columns int) Grid {
+	return &grid{
+		x:       -float32(columns) / 2,
+		y:       -float32(rows) / 2,
+		data:    make([]bool, columns+rows*columns, columns+rows*columns),
+		rows:    rows,
+		columns: columns,
+		world:   world,
+	}
 }
 
 // SpawnPiece spawns a new piece at the top of the grid.
-func (g *Grid) spawnPiece() {
-	g.world.Traitmanager.AddTrait(createPiece(g))
+func (g *grid) spawnPiece() {
+	g.world.CreateActor(func() logic.Trait {
+		return createPiece(g)
+	})
+}
+
+func (g *grid) Size() (int, int) {
+	return g.columns, g.rows
+}
+
+func (g *grid) GetBlock(x, y int) bool {
+	return g.data[x+y*g.columns]
 }
 
 // IntegrateBlock Adds a given blodk to the grid.
-func (g *Grid) IntegrateBlock(x, y int) {
+func (g *grid) SetBlock(x, y int) {
 	g.data[x+y*g.columns] = true
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (g *Grid) NotifyAdded(world *logic.World) {
-	g.world = world
+func (g *grid) NotifyAdded(owner logic.Actor) {
+	g.world = owner.World()
 	g.spawnPiece()
 }
 
 // Mesh Renderable interface
-func (g *Grid) Mesh() *render.Mesh {
-	mesh := new(render.Mesh)
-	/*for i, exists := range g.data {
+func (g *grid) Mesh() *render.Mesh {
+	mesh := &render.Mesh{}
+	for i, exists := range g.data {
 		if exists {
 			x := float32(i%5) - 2
 			y := float32(i/5) - 2
 			mesh.Points = []float32{
-				g.data[i],
+				x, y, 0,
+				x + 1, y, 0,
+				x, y + 1, 0,
+				x + 1, y + 1, 0,
+			}
+			mesh.Triangles = []uint32{
+				0, 1, 2,
+				1, 2, 3,
 			}
 		}
-	}*/
+	}
 	return mesh
 }
 
 // Pos Renderable interface
-func (g *Grid) Pos() (float32, float32) {
+func (g *grid) Pos() (float32, float32) {
 	return g.x, g.y
 }
 
 // Color Renderable interface
-func (g *Grid) Color() uint32 {
+func (g *grid) Color() uint32 {
 	return render.ToColor(255, 0, 0, 255)
 }
 
 // Render2D renders the grid.
-func (g *Grid) Render2D() []render.Renderable {
+func (g *grid) Render2D() []render.Renderable {
 	return []render.Renderable{g}
 }
