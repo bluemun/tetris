@@ -6,17 +6,21 @@
 package main
 
 import (
+	"github.com/bluemun/engine"
 	"github.com/bluemun/engine/graphics/render"
-	"github.com/bluemun/engine/logic"
 )
+
+type move struct {
+	x, y float32
+}
 
 type piece struct {
 	x, y        float32
 	gravCounter float32
 	g           Grid
 	blocks      [25]bool
-	world       *logic.World
-	owner       *logic.Actor
+	world       engine.World
+	owner       engine.Actor
 }
 
 // CreatePiece creates a piece to be used with the grid.
@@ -30,7 +34,7 @@ func createPiece(g Grid) *piece {
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (p *piece) NotifyAdded(owner *logic.Actor) {
+func (p *piece) NotifyAdded(owner engine.Actor) {
 	c, r := p.g.Size()
 	p.owner = owner
 	p.world = owner.World()
@@ -58,8 +62,15 @@ func (p *piece) Tick(deltaUnit float32) {
 }
 
 // Render2D renders the grid.
-func (p *piece) Render2D() []render.Renderable {
-	return []render.Renderable{p}
+func (p *piece) Render2D() []engine.Renderable {
+	return []engine.Renderable{p}
+}
+
+func (p *piece) ResolveOrder(order *engine.Order) {
+	if order.Order == "move" {
+		moveValues := order.Value.(*move)
+		p.TryMove(moveValues.x, moveValues.y)
+	}
 }
 
 func (p *piece) Pos() (float32, float32) {
@@ -70,8 +81,8 @@ func (p *piece) Color() uint32 {
 	return render.ToColor(255, 0xff, 0, 255)
 }
 
-func (p *piece) Mesh() *render.Mesh {
-	mesh := new(render.Mesh)
+func (p *piece) Mesh() *engine.Mesh {
+	mesh := &engine.Mesh{}
 	var offset uint32
 	for i, exists := range p.blocks {
 		if exists {

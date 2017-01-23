@@ -6,8 +6,10 @@
 package main
 
 import (
+	"github.com/bluemun/engine"
 	"github.com/bluemun/engine/game"
-	"github.com/bluemun/engine/logic"
+	"github.com/bluemun/engine/input"
+	"github.com/go-gl/glfw/v3.2/glfw"
 )
 
 var stopped = false
@@ -21,7 +23,11 @@ func main() {
 	game.Camera.Width = 20
 	game.Camera.Height = 20
 
-	game.World().CreateActor(func() logic.Trait {
+	og := input.CreateScriptableOrderGenerator()
+	og.AddKeyScript(int(glfw.KeyA), "move", &move{x: 1, y: 0})
+	game.SetOrderGenerator(og)
+
+	game.World().CreateActor(func() engine.Trait {
 		return CreateGrid(game.World(), 18, 10)
 	})
 

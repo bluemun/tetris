@@ -6,15 +6,16 @@
 package main
 
 import (
+	"github.com/bluemun/engine"
 	"github.com/bluemun/engine/graphics/render"
-	"github.com/bluemun/engine/logic"
+	"github.com/bluemun/engine/traits"
 )
 
 // Grid holds blocks that are in the game.
 type Grid interface {
-	logic.TraitAddedNotifier
-	render.TraitRender2D
-	render.Renderable
+	traits.TraitAddedNotifier
+	traits.TraitRender2D
+	engine.Renderable
 
 	Size() (int, int)
 	spawnPiece()
@@ -27,11 +28,11 @@ type grid struct {
 	x, y          float32
 	data          []bool
 	rows, columns int
-	world         *logic.World
+	world         engine.World
 }
 
 // CreateGrid creates a grid object correctly.
-func CreateGrid(world *logic.World, rows, columns int) Grid {
+func CreateGrid(world engine.World, rows, columns int) Grid {
 	return &grid{
 		x:       -float32(columns) / 2,
 		y:       -float32(rows) / 2,
@@ -44,7 +45,7 @@ func CreateGrid(world *logic.World, rows, columns int) Grid {
 
 // SpawnPiece spawns a new piece at the top of the grid.
 func (g *grid) spawnPiece() {
-	g.world.CreateActor(func() logic.Trait {
+	g.world.CreateActor(func() engine.Trait {
 		return createPiece(g)
 	})
 }
@@ -63,14 +64,14 @@ func (g *grid) SetBlock(x, y int) {
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (g *grid) NotifyAdded(owner *logic.Actor) {
+func (g *grid) NotifyAdded(owner engine.Actor) {
 	g.world = owner.World()
 	g.spawnPiece()
 }
 
 // Mesh Renderable interface
-func (g *grid) Mesh() *render.Mesh {
-	mesh := &render.Mesh{}
+func (g *grid) Mesh() *engine.Mesh {
+	mesh := &engine.Mesh{}
 	c, _ := g.Size()
 	var offset uint32
 	for i, exists := range g.data {
@@ -105,6 +106,6 @@ func (g *grid) Color() uint32 {
 }
 
 // Render2D renders the grid.
-func (g *grid) Render2D() []render.Renderable {
-	return []render.Renderable{g}
+func (g *grid) Render2D() []engine.Renderable {
+	return []engine.Renderable{g}
 }
