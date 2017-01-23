@@ -12,7 +12,7 @@ import (
 
 // Grid holds blocks that are in the game.
 type Grid interface {
-	logic.TraitNotifyAdded
+	logic.TraitAddedNotifier
 	render.TraitRender2D
 	render.Renderable
 
@@ -27,11 +27,11 @@ type grid struct {
 	x, y          float32
 	data          []bool
 	rows, columns int
-	world         logic.World
+	world         *logic.World
 }
 
 // CreateGrid creates a grid object correctly.
-func CreateGrid(world logic.World, rows, columns int) Grid {
+func CreateGrid(world *logic.World, rows, columns int) Grid {
 	return &grid{
 		x:       -float32(columns) / 2,
 		y:       -float32(rows) / 2,
@@ -63,7 +63,7 @@ func (g *grid) SetBlock(x, y int) {
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (g *grid) NotifyAdded(owner logic.Actor) {
+func (g *grid) NotifyAdded(owner *logic.Actor) {
 	g.world = owner.World()
 	g.spawnPiece()
 }

@@ -15,8 +15,8 @@ type piece struct {
 	gravCounter float32
 	g           Grid
 	blocks      [25]bool
-	world       logic.World
-	owner       logic.Actor
+	world       *logic.World
+	owner       *logic.Actor
 }
 
 // CreatePiece creates a piece to be used with the grid.
@@ -30,7 +30,7 @@ func createPiece(g Grid) *piece {
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (p *piece) NotifyAdded(owner logic.Actor) {
+func (p *piece) NotifyAdded(owner *logic.Actor) {
 	c, r := p.g.Size()
 	p.owner = owner
 	p.world = owner.World()
