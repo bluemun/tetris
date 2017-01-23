@@ -16,26 +16,28 @@ type piece struct {
 	g           Grid
 	blocks      [25]bool
 	world       logic.World
+	owner       logic.Actor
 }
 
 // CreatePiece creates a piece to be used with the grid.
 func createPiece(g Grid) *piece {
 	p := &piece{g: g}
-	p.blocks[2+1*5] = true
-	p.blocks[2+2*5] = true
 	p.blocks[2+3*5] = true
-	p.blocks[3+3*5] = true
+	p.blocks[2+2*5] = true
+	p.blocks[2+1*5] = true
+	p.blocks[3+1*5] = true
 	return p
 }
 
 // NotifyAdded runs when the grid gets added to a world.
 func (p *piece) NotifyAdded(owner logic.Actor) {
 	c, r := p.g.Size()
+	p.owner = owner
 	p.world = owner.World()
 	x, y := p.g.Pos()
 	p.SetPosition(x+float32(c/2), y+float32(r-1))
-	if p.TryMove(0, 0) {
-		//TODO: We have lost.
+	if !p.TryMove(0, 0) {
+		p.world.RemoveActor(owner)
 	}
 }
 
@@ -46,6 +48,9 @@ func (p *piece) Tick(deltaUnit float32) {
 		if !p.TryMove(0, -1) {
 			p.Integrate()
 			p.g.spawnPiece()
+			p.world.AddFrameEndTask(func() {
+				p.world.RemoveActor(p.owner)
+			})
 		}
 	}
 
@@ -67,16 +72,14 @@ func (p *piece) Color() uint32 {
 
 func (p *piece) Mesh() *render.Mesh {
 	mesh := new(render.Mesh)
-	mesh.Points = []float32{}
-	mesh.Triangles = []uint32{}
-	var j uint32
+	var offset uint32
 	for i, exists := range p.blocks {
 		if exists {
-			x := float32(i%5) - 2
-			y := float32(i/5) - 2
+			x := float32(i%5 - 2)
+			y := float32(i/5 - 2)
 			mesh.Points = append(mesh.Points, x, y, 0, x+0.9, y, 0, x, y+0.9, 0, x+0.9, y+0.9, 0)
-			mesh.Triangles = append(mesh.Triangles, j+0, j+1, j+2, j+1, j+2, j+3)
-			j += 4
+			mesh.Triangles = append(mesh.Triangles, offset+0, offset+1, offset+2, offset+1, offset+2, offset+3)
+			offset += 4
 		}
 	}
 

@@ -71,22 +71,26 @@ func (g *grid) NotifyAdded(owner logic.Actor) {
 // Mesh Renderable interface
 func (g *grid) Mesh() *render.Mesh {
 	mesh := &render.Mesh{}
+	c, _ := g.Size()
+	var offset uint32
 	for i, exists := range g.data {
 		if exists {
-			x := float32(i%5) - 2
-			y := float32(i/5) - 2
-			mesh.Points = []float32{
+			x := float32(i % c)
+			y := float32(i / c)
+			mesh.Points = append(mesh.Points,
 				x, y, 0,
-				x + 1, y, 0,
-				x, y + 1, 0,
-				x + 1, y + 1, 0,
-			}
-			mesh.Triangles = []uint32{
-				0, 1, 2,
-				1, 2, 3,
-			}
+				x+0.9, y, 0,
+				x, y+0.9, 0,
+				x+0.9, y+0.9, 0,
+			)
+			mesh.Triangles = append(mesh.Triangles,
+				offset+0, offset+1, offset+2,
+				offset+1, offset+2, offset+3,
+			)
+			offset += 4
 		}
 	}
+
 	return mesh
 }
 
