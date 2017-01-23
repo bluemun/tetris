@@ -6,54 +6,24 @@
 package main
 
 import (
-	"os"
-	"time"
-
-	"github.com/bluemun/engine"
-	"github.com/bluemun/engine/graphics"
-	"github.com/bluemun/engine/graphics/render"
+	"github.com/bluemun/engine/game"
 	"github.com/bluemun/engine/logic"
 )
 
 var stopped = false
 
 func main() {
-	go loop()
+	game := &game.Game{}
+	game.Initialize()
 
-	engine.Loop()
-}
+	game.Camera.X = 0
+	game.Camera.Y = 0
+	game.Camera.Width = 20
+	game.Camera.Height = 20
 
-func loop() {
-	window := graphics.CreateWindow()
-	camera := new(render.Camera)
-	camera.X = 0
-	camera.Y = 0
-	camera.Width = 20
-	camera.Height = 20
-	camera.Activate()
-
-	world := logic.CreateWorld()
-	renderer := render.CreateRendersTraits2D(world)
-
-	render := time.NewTicker(time.Second / 60)
-	update := time.NewTicker(time.Second / 60)
-
-	world.CreateActor(func() logic.Trait {
-		return CreateGrid(world, 18, 10)
+	game.World().CreateActor(func() logic.Trait {
+		return CreateGrid(game.World(), 18, 10)
 	})
 
-	for {
-		select {
-		case <-render.C:
-			window.Clear()
-			renderer.Render()
-			window.SwapBuffers()
-		case <-update.C:
-			world.Tick(1 / 60.0)
-			window.PollEvents()
-			if window.Closed() {
-				os.Exit(0)
-			}
-		}
-	}
+	game.Start()
 }
