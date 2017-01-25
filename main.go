@@ -9,10 +9,11 @@ import (
 	"github.com/bluemun/engine"
 	"github.com/bluemun/engine/game"
 	"github.com/bluemun/engine/input"
-	"github.com/go-gl/glfw/v3.2/glfw"
 )
 
 var stopped = false
+
+const framrate int64 = 120
 
 func main() {
 	game := &game.Game{}
@@ -24,12 +25,22 @@ func main() {
 	game.Camera.Height = 20
 
 	og := input.CreateScriptableOrderGenerator()
-	og.AddKeyScript(int(glfw.KeyA), "move", &move{x: 1, y: 0})
+	og.AddKeyScript(39, true, "rush", nil)
+
+	og.AddKeyScript(38, true, "move", &orderpack{left: true, enabled: true})
+	og.AddKeyScript(38, false, "move", &orderpack{left: true, enabled: false})
+	og.AddKeyScript(40, true, "move", &orderpack{left: false, enabled: true})
+	og.AddKeyScript(40, false, "move", &orderpack{left: false, enabled: false})
+
+	og.AddKeyScript(24, true, "rotate", &orderpack{left: true, enabled: true})
+	og.AddKeyScript(24, false, "rotate", &orderpack{left: true, enabled: false})
+	og.AddKeyScript(26, true, "rotate", &orderpack{left: false, enabled: true})
+	og.AddKeyScript(26, false, "rotate", &orderpack{left: false, enabled: false})
 	game.SetOrderGenerator(og)
 
 	game.World().CreateActor(func() engine.Trait {
 		return CreateGrid(game.World(), 18, 10)
 	})
 
-	game.Start()
+	game.Start(framrate)
 }

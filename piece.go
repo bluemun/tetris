@@ -10,22 +10,26 @@ import (
 	"github.com/bluemun/engine/graphics/render"
 )
 
-type move struct {
-	x, y float32
+type orderpack struct {
+	left, enabled bool
 }
 
 type piece struct {
-	x, y        float32
-	gravCounter float32
-	g           Grid
-	blocks      [25]bool
-	world       engine.World
-	owner       engine.Actor
+	x, y           float32
+	gravReset      float32
+	gravCounter    float32
+	inputCounter   float32
+	mr, ml, rr, rl bool
+	g              Grid
+	blocks         [25]bool
+	world          engine.World
+	owner          engine.Actor
 }
 
 // CreatePiece creates a piece to be used with the grid.
 func createPiece(g Grid) *piece {
 	p := &piece{g: g}
+	p.gravReset = 0.2
 	p.blocks[2+3*5] = true
 	p.blocks[2+2*5] = true
 	p.blocks[2+1*5] = true
@@ -47,7 +51,7 @@ func (p *piece) NotifyAdded(owner engine.Actor) {
 
 // Tick runs when the world ticks.
 func (p *piece) Tick(deltaUnit float32) {
-	if p.gravCounter >= 0.1 {
+	if p.gravCounter >= p.gravReset {
 		p.gravCounter = 0
 		if !p.TryMove(0, -1) {
 			p.Integrate()
@@ -58,7 +62,19 @@ func (p *piece) Tick(deltaUnit float32) {
 		}
 	}
 
+	if p.inputCounter <= 0 && (p.mr || p.ml) {
+		var x float32
+		if p.mr {
+			x++
+		}
+		if p.ml {
+			x--
+		}
+		p.TryControlMove(x, 0)
+	}
+
 	p.gravCounter += deltaUnit
+	p.inputCounter -= deltaUnit
 }
 
 // Render2D renders the grid.
@@ -67,9 +83,110 @@ func (p *piece) Render2D() []engine.Renderable {
 }
 
 func (p *piece) ResolveOrder(order *engine.Order) {
-	if order.Order == "move" {
-		moveValues := order.Value.(*move)
-		p.TryMove(moveValues.x, moveValues.y)
+	switch order.Order {
+	case "rush":
+		p.gravReset = 0
+	case "move":
+		pack := order.Value.(*orderpack)
+		switch pack.left {
+		case true:
+			p.ml = pack.enabled
+			if pack.enabled {
+				p.TryControlMove(-1, 0)
+			}
+		case false:
+			p.mr = pack.enabled
+			if pack.enabled {
+				p.TryControlMove(1, 0)
+			}
+		}
+	case "rotate":
+		pack := order.Value.(*orderpack)
+		switch pack.left {
+		case true:
+			p.rl = pack.enabled
+			if pack.enabled {
+				p.TryRotate(true)
+			}
+		case false:
+			p.rr = pack.enabled
+			if pack.enabled {
+				p.TryRotate(false)
+			}
+		}
+	}
+}
+
+func (p *piece) TryControlMove(x, y float32) bool {
+	if p.inputCounter <= 0 && p.TryMove(x, y) {
+		p.inputCounter = 0.01
+		return true
+	}
+
+	return false
+}
+
+func (p *piece) TryMove(x, y float32) bool {
+	if p.collides(p.blocks, x, y) {
+		return false
+	}
+
+	p.x += x
+	p.y += y
+	return true
+}
+
+func (p *piece) TryRotate(left bool) {
+	var newBlocks [25]bool
+	if left {
+		for y := 0; y < 5; y++ {
+			for x := 0; x < 5; x++ {
+				newBlocks[x+y*5] = p.blocks[5-y-1+x*5]
+			}
+		}
+	} else {
+		for y := 0; y < 5; y++ {
+			for x := 0; x < 5; x++ {
+				newBlocks[x+y*5] = p.blocks[y+(5-x-1)*5]
+			}
+		}
+	}
+
+	if !p.collides(newBlocks, 0, 0) {
+		p.blocks = newBlocks
+	}
+}
+
+func (p *piece) collides(array [25]bool, x, y float32) bool {
+	c, r := p.g.Size()
+	for i, exists := range array {
+		if exists {
+			bx, by := p.blockPos(i)
+			bx += x
+			by += y
+			if bx < 0 || bx >= float32(c) || by < 0 {
+				return true
+			}
+
+			if by >= float32(r) {
+				continue
+			}
+
+			if p.g.GetBlock(int(bx), int(by)) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (p *piece) Integrate() {
+	for i, exists := range p.blocks {
+		if exists {
+			bx, by := p.blockPos(i)
+			p.g.SetBlock(int(bx), int(by))
+		}
 	}
 }
 
@@ -105,43 +222,4 @@ func (p *piece) SetPosition(x, y float32) {
 func (p *piece) blockPos(i int) (float32, float32) {
 	x, y := p.g.Pos()
 	return p.x - x + float32(i%5) - 2, p.y - y + float32(i/5) - 2
-}
-
-func (p *piece) TryMove(x, y float32) bool {
-	c, r := p.g.Size()
-	for i, exists := range p.blocks {
-		if exists {
-			bx, by := p.blockPos(i)
-			bx += x
-			by += y
-			if bx < 0 || bx >= float32(c) || by < 0 {
-				return false
-			}
-
-			if by >= float32(r) {
-				continue
-			}
-
-			if p.g.GetBlock(int(bx), int(by)) {
-				return false
-			}
-		}
-	}
-
-	p.x += x
-	p.y += y
-	return true
-}
-
-func (p *piece) TryRotate() {
-
-}
-
-func (p *piece) Integrate() {
-	for i, exists := range p.blocks {
-		if exists {
-			bx, by := p.blockPos(i)
-			p.g.SetBlock(int(bx), int(by))
-		}
-	}
 }
