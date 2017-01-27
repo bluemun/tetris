@@ -37,6 +37,16 @@ func createPiece(g Grid) *piece {
 	return p
 }
 
+// Initialize is used by the ActorRegistry to initialize this trait.
+func (p *piece) Initialize(world engine.World, owner engine.Actor, parameters map[string]interface{}) {
+	p.g = parameters["grid"].(Grid)
+	p.gravReset = 0.2
+	p.blocks[2+3*5] = true
+	p.blocks[2+2*5] = true
+	p.blocks[2+1*5] = true
+	p.blocks[3+1*5] = true
+}
+
 // NotifyAdded runs when the grid gets added to a world.
 func (p *piece) NotifyAdded(owner engine.Actor) {
 	c, r := p.g.Size()
@@ -119,7 +129,7 @@ func (p *piece) ResolveOrder(order *engine.Order) {
 
 func (p *piece) TryControlMove(x, y float32) bool {
 	if p.inputCounter <= 0 && p.TryMove(x, y) {
-		p.inputCounter = 0.01
+		p.inputCounter = 0.05
 		return true
 	}
 

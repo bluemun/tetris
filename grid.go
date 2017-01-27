@@ -31,23 +31,21 @@ type grid struct {
 	world         engine.World
 }
 
-// CreateGrid creates a grid object correctly.
-func CreateGrid(world engine.World, rows, columns int) Grid {
-	return &grid{
-		x:       -float32(columns) / 2,
-		y:       -float32(rows) / 2,
-		data:    make([]bool, columns+rows*columns, columns+rows*columns),
-		rows:    rows,
-		columns: columns,
-		world:   world,
-	}
+// Initialize is used by the ActorRegistry to initialize this trait.
+func (g *grid) Initialize(world engine.World, owner engine.Actor, parameters map[string]interface{}) {
+	g.rows = parameters["height"].(int)
+	g.columns = parameters["width"].(int)
+	g.x = -float32(g.columns) / 2
+	g.y = -float32(g.rows) / 2
+	g.data = make([]bool, g.columns+g.rows*g.columns, g.columns+g.rows*g.columns)
+	g.world = world
 }
 
 // SpawnPiece spawns a new piece at the top of the grid.
 func (g *grid) spawnPiece() {
-	g.world.CreateActor(func() engine.Trait {
-		return createPiece(g)
-	})
+	params := make(map[string]interface{}, 1)
+	params["grid"] = g
+	theGame.ActorRegistry().CreateActor("Piece", params, theGame.World())
 }
 
 func (g *grid) Size() (int, int) {

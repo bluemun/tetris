@@ -6,23 +6,25 @@
 package main
 
 import (
-	"github.com/bluemun/engine"
 	"github.com/bluemun/engine/game"
 	"github.com/bluemun/engine/input"
+	"github.com/bluemun/engine/logic"
 )
 
 var stopped = false
 
 const framrate int64 = 120
 
-func main() {
-	game := &game.Game{}
-	game.Initialize()
+var theGame *game.Game
 
-	game.Camera.X = 0
-	game.Camera.Y = 0
-	game.Camera.Width = 20
-	game.Camera.Height = 20
+func main() {
+	theGame = &game.Game{}
+	theGame.Initialize()
+
+	theGame.Camera.X = 0
+	theGame.Camera.Y = 0
+	theGame.Camera.Width = 20
+	theGame.Camera.Height = 20
 
 	og := input.CreateScriptableOrderGenerator()
 	og.AddKeyScript(39, true, "rush", nil)
@@ -36,11 +38,23 @@ func main() {
 	og.AddKeyScript(24, false, "rotate", &orderpack{left: true, enabled: false})
 	og.AddKeyScript(26, true, "rotate", &orderpack{left: false, enabled: true})
 	og.AddKeyScript(26, false, "rotate", &orderpack{left: false, enabled: false})
-	game.SetOrderGenerator(og)
+	theGame.SetOrderGenerator(og)
 
-	game.World().CreateActor(func() engine.Trait {
-		return CreateGrid(game.World(), 18, 10)
-	})
+	ar := theGame.ActorRegistry()
+	ar.RegisterTrait("Grid", (*grid)(nil))
+	ar.RegisterTrait("Piece", (*piece)(nil))
 
-	game.Start(framrate)
+	ad := logic.CreateActorDefinition("Grid")
+	ad.AddTrait("Grid")
+	ad.AddParameter("Grid", "width", 10)
+	ad.AddParameter("Grid", "height", 18)
+	ar.RegisterActor(ad)
+
+	ad = logic.CreateActorDefinition("Piece")
+	ad.AddTrait("Piece")
+	ar.RegisterActor(ad)
+
+	ar.CreateActor("Grid", nil, theGame.World())
+
+	theGame.Start(framrate)
 }
