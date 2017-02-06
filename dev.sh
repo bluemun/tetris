@@ -7,13 +7,13 @@
 running=0
 
 function install {
-  go install github.com/bluemun/engine
+  go install github.com/bluemun/munfall
   echo "engine installed"
-  go install github.com/bluemun/engine/graphics
+  go install github.com/bluemun/munfall/graphics
   echo "engine/graphics installed"
-  go install github.com/bluemun/engine/graphics/shader
+  go install github.com/bluemun/munfall/graphics/shader
   echo "engine/graphics/shader installed"
-  go install github.com/bluemun/engine/graphics/render
+  go install github.com/bluemun/munfall/graphics/render
   echo "engine/graphics/render installed"
   go install github.com/bluemun/tetris
   echo "Tetris installed"

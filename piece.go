@@ -5,14 +5,11 @@
 // Package tetris block.go Defines blocks and pieces used by the grid.
 package main
 
+/*
 import (
-	"github.com/bluemun/engine"
-	"github.com/bluemun/engine/graphics/render"
+	"github.com/bluemun/munfall"
+	"github.com/bluemun/munfall/graphics/render"
 )
-
-type orderpack struct {
-	left, enabled bool
-}
 
 type piece struct {
 	x, y           float32
@@ -22,8 +19,8 @@ type piece struct {
 	mr, ml, rr, rl bool
 	g              Grid
 	blocks         [25]bool
-	world          engine.World
-	owner          engine.Actor
+	world          munfall.World
+	owner          munfall.Actor
 }
 
 // CreatePiece creates a piece to be used with the grid.
@@ -38,7 +35,7 @@ func createPiece(g Grid) *piece {
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
-func (p *piece) Initialize(world engine.World, owner engine.Actor, parameters map[string]interface{}) {
+func (p *piece) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
 	p.g = parameters["grid"].(Grid)
 	p.gravReset = 0.2
 	p.blocks[2+3*5] = true
@@ -48,7 +45,7 @@ func (p *piece) Initialize(world engine.World, owner engine.Actor, parameters ma
 }
 
 // NotifyAdded runs when the grid gets added to a world.
-func (p *piece) NotifyAdded(owner engine.Actor) {
+func (p *piece) NotifyAdded(owner munfall.Actor) {
 	c, r := p.g.Size()
 	p.owner = owner
 	p.world = owner.World()
@@ -88,11 +85,11 @@ func (p *piece) Tick(deltaUnit float32) {
 }
 
 // Render2D renders the grid.
-func (p *piece) Render2D() []engine.Renderable {
-	return []engine.Renderable{p}
+func (p *piece) Render2D() []munfall.Renderable {
+	return []munfall.Renderable{p}
 }
 
-func (p *piece) ResolveOrder(order *engine.Order) {
+func (p *piece) ResolveOrder(order *munfall.Order) {
 	switch order.Order {
 	case "rush":
 		p.gravReset = 0
@@ -208,8 +205,8 @@ func (p *piece) Color() uint32 {
 	return render.ToColor(255, 0xff, 0, 255)
 }
 
-func (p *piece) Mesh() *engine.Mesh {
-	mesh := &engine.Mesh{}
+func (p *piece) Mesh() *munfall.Mesh {
+	mesh := &munfall.Mesh{}
 	var offset uint32
 	for i, exists := range p.blocks {
 		if exists {
@@ -233,3 +230,4 @@ func (p *piece) blockPos(i int) (float32, float32) {
 	x, y := p.g.Pos()
 	return p.x - x + float32(i%5) - 2, p.y - y + float32(i/5) - 2
 }
+*/
