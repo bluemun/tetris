@@ -95,7 +95,7 @@ func (t *MoveOrderTrait) ResolveOrder(order *munfall.Order) {
 
 // MoveTickTrait bla
 type MoveTickTrait struct {
-	worldMap       munfall.WorldMap
+	world          munfall.World
 	owner          munfall.Actor
 	tick, ticktime float32
 
@@ -106,7 +106,7 @@ type MoveTickTrait struct {
 
 // Initialize is used by the ActorRegistry to initialize this trait.
 func (t *MoveTickTrait) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
-	t.worldMap = world.WorldMap()
+	t.world = world
 	t.owner = owner
 	t.ticktime = parameters["TickTime"].(float32)
 	t.blockedOrder = parameters["BlockedOrder"].(string)
@@ -127,15 +127,22 @@ func (t *MoveTickTrait) Tick(du float32) {
 
 	t.tick += du
 	if t.ticktime <= t.tick {
-		path := t.worldMap.GetPath(t.owner, t.owner.Pos(), t.owner.Pos().Add(t.move))
+		path := t.world.WorldMap().GetPath(t.owner, t.owner.Pos(), t.owner.Pos().Add(t.move))
+		for _, canmove := range t.world.GetTraitsImplementing(t.owner, (*Mover)(nil)) {
+			if !canmove.(Mover).CanMove(path.WPos(1)) {
+				t.blocked = true
+				break
+			}
+		}
 
-		if munfall.IsNil(path.Next()) {
+		munfall.Logger.Info(t.blocked, path.IsEnd(), path.MPos(), path.Next().MPos())
+		if t.blocked || munfall.IsNil(path.Next()) || path.IsEnd() {
 			t.blocked = true
 
-			cbt := t.owner.World().GetTrait(t.owner, (*CellBodyTrait)(nil)).(*CellBodyTrait)
+			cbt := t.world.GetTrait(t.owner, (*CellBodyTrait)(nil)).(*CellBodyTrait)
 			ys := make(map[uint]interface{}, 0)
 			for _, space := range cbt.Space() {
-				ys[t.worldMap.ConvertToMPos(space.Offset()).Y] = nil
+				ys[t.world.WorldMap().ConvertToMPos(space.Offset()).Y] = nil
 			}
 
 			order := &munfall.Order{
@@ -149,9 +156,9 @@ func (t *MoveTickTrait) Tick(du float32) {
 				i++
 			}
 
-			t.owner.World().IssueGlobalOrder(order)
+			t.world.IssueGlobalOrder(order)
 		} else {
-			t.worldMap.Move(t.owner, path.Last(), 1)
+			t.world.WorldMap().Move(t.owner, path.Last(), 1)
 		}
 
 		t.tick = 0
@@ -269,18 +276,65 @@ func (t *RenderCellBodyTrait) Render2D() []munfall.Renderable {
 	return renderables
 }
 
-// ActorSpawner spawns an actor at a specific spawnpoint when it recieves a specific order.
-type ActorSpawner struct {
+// Mover is used by traits to provide a simple question interface for movement.
+type Mover interface {
+	CanMove(*munfall.WPos) bool
+}
+
+// SpawnActorFollowerTrait spawns an actor at a specific offset to this actor
+// when it is added to the world.
+type SpawnActorFollowerTrait struct {
 	world munfall.World
 	owner munfall.Actor
 
-	spawnpoint *munfall.WPos
-	actors     []string
-	order      string
+	offset *munfall.WPos
+	actor  munfall.Actor
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
-func (t *ActorSpawner) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
+func (t *SpawnActorFollowerTrait) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
+	t.world = world
+	t.owner = owner
+
+	t.offset = parameters["Offset"].(*munfall.WPos)
+	t.actor = theGame.ActorRegistry().CreateActor(parameters["Actor"].(string), nil, world, false)
+}
+
+// Owner returns the actor this trait is attached on.
+func (t *SpawnActorFollowerTrait) Owner() munfall.Actor {
+	return t.owner
+}
+
+// NotifyAddedToWorld adds the actor to the world that is supposed to be spawned.
+func (t *SpawnActorFollowerTrait) NotifyAddedToWorld() {
+	t.actor.SetPos(t.owner.Pos().Add(t.offset))
+	t.world.AddToWorld(t.actor)
+}
+
+// NotifyMove called when the actor moves.
+func (t *SpawnActorFollowerTrait) NotifyMove(old, new *munfall.WPos) {
+	path := t.world.WorldMap().GetPath(t.actor, t.actor.Pos(), t.actor.Pos().Add(new.Subtract(old)))
+	t.world.WorldMap().Move(t.actor, path.Last(), 1)
+}
+
+// CanMove tests if this position is legal.
+func (t *SpawnActorFollowerTrait) CanMove(pos *munfall.WPos) bool {
+	return true
+}
+
+// SpawnActorOrderTrait spawns an actor at a specific spawnpoint when it recieves a specific order.
+type SpawnActorOrderTrait struct {
+	world munfall.World
+	owner munfall.Actor
+
+	spawnpoint   *munfall.WPos
+	actors       []string
+	order        string
+	currentActor munfall.Actor
+}
+
+// Initialize is used by the ActorRegistry to initialize this trait.
+func (t *SpawnActorOrderTrait) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
 	t.world = world
 	t.owner = owner
 
@@ -290,25 +344,31 @@ func (t *ActorSpawner) Initialize(world munfall.World, owner munfall.Actor, para
 }
 
 // Owner returns the actor this trait is attached on.
-func (t *ActorSpawner) Owner() munfall.Actor {
+func (t *SpawnActorOrderTrait) Owner() munfall.Actor {
 	return t.owner
 }
 
 // ResolveOrder spawns a specified actor when a specified order is resolved.
-func (t *ActorSpawner) ResolveOrder(order *munfall.Order) {
+func (t *SpawnActorOrderTrait) ResolveOrder(order *munfall.Order) {
 	if order.Order == t.order {
 		a := t.actors[rand.Intn(len(t.actors))]
 		w := t.world
 		w.AddFrameEndTask(func() {
-			a := theGame.ActorRegistry().CreateActor(a, nil, w, false)
-			a.SetPos(t.spawnpoint)
-			w.AddToWorld(a)
+			if t.currentActor != nil {
+				t.currentActor.Kill()
+				t.world.RemoveFromWorld(t.currentActor)
+				theGame.ActorRegistry().DisposeActor(t.currentActor, t.world)
+			}
+
+			t.currentActor = theGame.ActorRegistry().CreateActor(a, nil, w, false)
+			t.currentActor.SetPos(t.spawnpoint)
+			w.AddToWorld(t.currentActor)
 		})
 	}
 }
 
-// RowClearer clears full rows and moves cells down a block when it recives a specific order.
-type RowClearer struct {
+// ClearRowTrait clears full rows and moves cells down a block when it recives a specific order.
+type ClearRowTrait struct {
 	world munfall.World
 	owner munfall.Actor
 
@@ -317,7 +377,7 @@ type RowClearer struct {
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
-func (t *RowClearer) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
+func (t *ClearRowTrait) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
 	t.world = world
 	t.owner = owner
 
@@ -327,14 +387,14 @@ func (t *RowClearer) Initialize(world munfall.World, owner munfall.Actor, parame
 }
 
 // Owner returns the actor this trait is attached on.
-func (t *RowClearer) Owner() munfall.Actor {
+func (t *ClearRowTrait) Owner() munfall.Actor {
 	return t.owner
 }
 
 // ResolveOrder checks for full rows in the map, clears them and moves all the
 // actors that contain the MoveControlTrait and are disabled down 1 cell if a full
 // row was found.
-func (t *RowClearer) ResolveOrder(order *munfall.Order) {
+func (t *ClearRowTrait) ResolveOrder(order *munfall.Order) {
 	if order.Order == t.order {
 		rows := order.Value.([]uint)
 		w := t.world
