@@ -14,18 +14,28 @@ import (
 
 // MoveOrderTrait moves the actor when the given order is issued.
 type MoveOrderTrait struct {
-	Order string
+	Order                    string
+	stepSize, tick, ticktime float32
+	right, left              bool
 
-	worldMap munfall.WorldMap
-	owner    munfall.Actor
+	world      munfall.World
+	owner      munfall.Actor
+	moveticker *MoveTickTrait
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
 func (t *MoveOrderTrait) Initialize(world munfall.World, owner munfall.Actor, parameters map[string]interface{}) {
-	t.worldMap = world.WorldMap()
+	t.world = world
 	t.owner = owner
 
 	t.Order = parameters["Order"].(string)
+	t.stepSize = parameters["StepSize"].(float32)
+	t.ticktime = parameters["MoveDelay"].(float32)
+}
+
+// NotifyAddedToWorld tries to retrieve a MoveTickTrait from the actor.
+func (t *MoveOrderTrait) NotifyAddedToWorld() {
+	t.moveticker = t.world.GetTrait(t.owner, (*MoveTickTrait)(nil)).(*MoveTickTrait)
 }
 
 // Owner returns the actor this trait is attached on.
@@ -33,13 +43,53 @@ func (t *MoveOrderTrait) Owner() munfall.Actor {
 	return t.owner
 }
 
+// Tick moves the actor when the elapsed ticktime has passed.
+func (t *MoveOrderTrait) Tick(du float32) {
+	if !munfall.IsNil(t.moveticker) && t.moveticker.blocked {
+		return
+	}
+
+	t.tick += du
+	if t.ticktime <= t.tick {
+		move := float32(0)
+		if t.right {
+			move += t.stepSize
+		}
+
+		if t.left {
+			move -= t.stepSize
+		}
+
+		if move == 0 {
+			t.tick = t.ticktime
+			return
+		}
+
+		path := t.world.WorldMap().GetPath(t.owner, t.owner.Pos(),
+			t.owner.Pos().Add(&munfall.WPos{X: move}))
+
+		if !munfall.IsNil(path.Next()) {
+			t.world.WorldMap().Move(t.owner, path.Last(), 1)
+		}
+
+		t.tick = 0
+	}
+}
+
 // ResolveOrder moves the actor when it recieves a specific order.
 func (t *MoveOrderTrait) ResolveOrder(order *munfall.Order) {
 	if order.Order == t.Order {
-		pos1 := t.worldMap.ConvertToMPos(t.owner.Pos())
-		pos2 := t.worldMap.ConvertToMPos(t.owner.Pos().Add(order.Value.(*munfall.WPos)))
-		path := t.worldMap.GetPath(t.owner, pos1, pos2).Last()
-		t.worldMap.Move(t.owner, path, 1)
+		munfall.Logger.Info(order)
+		switch order.Value.(int) {
+		case 2:
+			t.right = true
+		case 1:
+			t.right = false
+		case -1:
+			t.left = false
+		case -2:
+			t.left = true
+		}
 	}
 }
 
@@ -49,8 +99,9 @@ type MoveTickTrait struct {
 	owner          munfall.Actor
 	tick, ticktime float32
 
-	blocked      bool
-	blockedOrder string
+	blocked, rush           bool
+	blockedOrder, rushorder string
+	move                    *munfall.WPos
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
@@ -59,6 +110,8 @@ func (t *MoveTickTrait) Initialize(world munfall.World, owner munfall.Actor, par
 	t.owner = owner
 	t.ticktime = parameters["TickTime"].(float32)
 	t.blockedOrder = parameters["BlockedOrder"].(string)
+	t.rushorder = parameters["RushOrder"].(string)
+	t.move = parameters["Move"].(*munfall.WPos)
 }
 
 // Owner returns the actor this trait is attached on.
@@ -73,17 +126,42 @@ func (t *MoveTickTrait) Tick(du float32) {
 	}
 
 	t.tick += du
-	if t.ticktime >= t.tick {
-		pos1 := t.worldMap.ConvertToMPos(t.owner.Pos())
-		pos2 := t.worldMap.ConvertToMPos(t.owner.Pos().Add(&munfall.WPos{X: 0, Y: 1}))
-		path := t.worldMap.GetPath(t.owner, pos1, pos2).Last()
+	if t.ticktime <= t.tick {
+		path := t.worldMap.GetPath(t.owner, t.owner.Pos(), t.owner.Pos().Add(t.move))
 
-		if path.Next() == nil {
+		if munfall.IsNil(path.Next()) {
 			t.blocked = true
-			t.owner.World().IssueGlobalOrder(&munfall.Order{Order: t.blockedOrder})
+
+			cbt := t.owner.World().GetTrait(t.owner, (*CellBodyTrait)(nil)).(*CellBodyTrait)
+			ys := make(map[uint]interface{}, 0)
+			for _, space := range cbt.Space() {
+				ys[t.worldMap.ConvertToMPos(space.Offset()).Y] = nil
+			}
+
+			order := &munfall.Order{
+				Order: t.blockedOrder,
+				Value: make([]uint, len(ys)),
+			}
+
+			i := 0
+			for y := range ys {
+				order.Value.([]uint)[i] = y
+				i++
+			}
+
+			t.owner.World().IssueGlobalOrder(order)
 		} else {
-			t.worldMap.Move(t.owner, path, 1)
+			t.worldMap.Move(t.owner, path.Last(), 1)
 		}
+
+		t.tick = 0
+	}
+}
+
+// ResolveOrder moves the actor when it recieves a specific order.
+func (t *MoveTickTrait) ResolveOrder(order *munfall.Order) {
+	if order.Order == t.rushorder {
+		t.ticktime = 0
 	}
 }
 
@@ -93,7 +171,7 @@ type CellBodyTrait struct {
 	owner munfall.Actor
 	space []munfall.Space
 
-	Size float32
+	HalfSize float32
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
@@ -101,15 +179,15 @@ func (t *CellBodyTrait) Initialize(world munfall.World, owner munfall.Actor, par
 	t.world = world
 	t.owner = owner
 
-	t.Size = parameters["Size"].(float32)
+	t.HalfSize = parameters["HalfSize"].(float32)
 	offsets := parameters["Offsets"].([]*munfall.WPos)
 	t.space = make([]munfall.Space, len(offsets))
 	for i, offset := range offsets {
 		t.space[i] = &traits.SpaceCell{
 			LocalOffset: &munfall.WPos{
-				X: offset.X * t.Size,
-				Y: offset.Y * t.Size,
-				Z: offset.Z * t.Size,
+				X: offset.X * t.HalfSize * 2,
+				Y: offset.Y * t.HalfSize * 2,
+				Z: offset.Z * t.HalfSize * 2,
 			},
 		}
 
@@ -122,16 +200,27 @@ func (t *CellBodyTrait) Owner() munfall.Actor {
 	return t.owner
 }
 
+// OutOfBounds returns true if the actor is out of bound with the given offset.
+func (t *CellBodyTrait) OutOfBounds(offset *munfall.WPos) bool {
+	for _, space := range t.space {
+		if !t.world.WorldMap().InsideMapWPos(space.Offset().Add(offset)) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Intersects returns true if the two spaces have at least 1 cell in common.
-func (t *CellBodyTrait) Intersects(os traits.OccupySpace) bool {
+func (t *CellBodyTrait) Intersects(os traits.OccupySpace, offset *munfall.WPos) bool {
 	if os.Owner().ActorID() == t.owner.ActorID() {
 		return false
 	}
 
 	spaces := os.Space()
 	for _, space := range spaces {
-		for _, offset := range t.space {
-			if *offset.Offset() == *space.Offset() {
+		for _, tspace := range t.space {
+			if tspace.Intersects(space, offset) {
 				return true
 			}
 		}
@@ -173,7 +262,8 @@ func (t *RenderCellBodyTrait) Render2D() []munfall.Renderable {
 	renderables := make([]munfall.Renderable, len(spaces))
 
 	for i, space := range spaces {
-		renderables[i] = CreateSquereRenderable(space.Offset(), 0xFF0000FF, cbt.Size)
+		mpos := t.world.WorldMap().ConvertToMPos(space.Offset())
+		renderables[i] = CreateSquereRenderable(t.world.WorldMap().ConvertToWPos(mpos), 0xFF0000FF, cbt.HalfSize)
 	}
 
 	return renderables
@@ -222,8 +312,8 @@ type RowClearer struct {
 	world munfall.World
 	owner munfall.Actor
 
-	order    string
-	stepsize float32
+	order, moveorder string
+	stepsize         float32
 }
 
 // Initialize is used by the ActorRegistry to initialize this trait.
@@ -232,6 +322,7 @@ func (t *RowClearer) Initialize(world munfall.World, owner munfall.Actor, parame
 	t.owner = owner
 
 	t.order = parameters["Order"].(string)
+	t.moveorder = parameters["MoveOrder"].(string)
 	t.stepsize = parameters["StepSize"].(float32)
 }
 
@@ -273,9 +364,12 @@ func (t *RowClearer) ResolveOrder(order *munfall.Order) {
 				}
 
 				if full {
+					pos.X = 0
 					actors := make(map[uint]munfall.Actor)
 					for {
+						munfall.Logger.Info("Run", pos)
 						if !wm.InsideMapMPos(pos) {
+							munfall.Logger.Info("End")
 							break
 						}
 
@@ -334,8 +428,8 @@ func (t *RowClearer) ResolveOrder(order *munfall.Order) {
 					}
 
 					order := &munfall.Order{
-						Order: "move",
-						Value: &munfall.WPos{X: 0, Y: -t.stepsize, Z: 0},
+						Order: t.moveorder,
+						Value: -1,
 					}
 
 					// Issue a move order to every actor above the row on the y axis.
