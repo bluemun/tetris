@@ -79,7 +79,6 @@ func (t *MoveOrderTrait) Tick(du float32) {
 // ResolveOrder moves the actor when it recieves a specific order.
 func (t *MoveOrderTrait) ResolveOrder(order *munfall.Order) {
 	if order.Order == t.Order {
-		munfall.Logger.Info(order)
 		switch order.Value.(int) {
 		case 2:
 			t.right = true
@@ -127,37 +126,29 @@ func (t *MoveTickTrait) Tick(du float32) {
 
 	t.tick += du
 	if t.ticktime <= t.tick {
+		// Get the path from the actor position to the actor position offset by our move vector.
 		path := t.world.WorldMap().GetPath(t.owner, t.owner.Pos(), t.owner.Pos().Add(t.move))
 		for _, canmove := range t.world.GetTraitsImplementing(t.owner, (*Mover)(nil)) {
+			// Check if all traits on this actor agree that we can move to the WPos in the path.
+			// path.WPos(percent) lerps the position between two points in the path according
+			// to the percentage given, if it is the end of the path it just returns the position.
 			if !canmove.(Mover).CanMove(path.WPos(1)) {
 				t.blocked = true
 				break
 			}
 		}
 
-		munfall.Logger.Info(t.blocked, path.IsEnd(), path.MPos(), path.Next().MPos())
 		if t.blocked || munfall.IsNil(path.Next()) || path.IsEnd() {
+			// We can't move as the path is blocked (path.Next() is nil) so we destroy this actor.
 			t.blocked = true
-
-			cbt := t.world.GetTrait(t.owner, (*CellBodyTrait)(nil)).(*CellBodyTrait)
-			ys := make(map[uint]interface{}, 0)
-			for _, space := range cbt.Space() {
-				ys[t.world.WorldMap().ConvertToMPos(space.Offset()).Y] = nil
-			}
-
-			order := &munfall.Order{
-				Order: t.blockedOrder,
-				Value: make([]uint, len(ys)),
-			}
-
-			i := 0
-			for y := range ys {
-				order.Value.([]uint)[i] = y
-				i++
-			}
-
-			t.world.IssueGlobalOrder(order)
+			t.world.IssueGlobalOrder(&munfall.Order{Order: t.blockedOrder})
+			t.world.AddFrameEndTask(func() {
+				t.owner.Kill()
+				theGame.ActorRegistry().DisposeActor(t.owner, t.world)
+			})
 		} else {
+			// Move according to the path we generated, this sends a NotifyMove call to every
+			// trait on the actor that implements it.
 			t.world.WorldMap().Move(t.owner, path.Last(), 1)
 		}
 
@@ -319,7 +310,8 @@ func (t *SpawnActorFollowerTrait) NotifyMove(old, new *munfall.WPos) {
 
 // CanMove tests if this position is legal.
 func (t *SpawnActorFollowerTrait) CanMove(pos *munfall.WPos) bool {
-	return true
+	path := t.world.WorldMap().GetPath(t.actor, t.actor.Pos(), t.actor.Pos().Add(t.owner.Pos().Add(t.offset).Subtract(pos)))
+	return !munfall.IsNil(path.Next())
 }
 
 // SpawnActorOrderTrait spawns an actor at a specific spawnpoint when it recieves a specific order.
@@ -356,7 +348,6 @@ func (t *SpawnActorOrderTrait) ResolveOrder(order *munfall.Order) {
 		w.AddFrameEndTask(func() {
 			if t.currentActor != nil {
 				t.currentActor.Kill()
-				t.world.RemoveFromWorld(t.currentActor)
 				theGame.ActorRegistry().DisposeActor(t.currentActor, t.world)
 			}
 
@@ -396,108 +387,102 @@ func (t *ClearRowTrait) Owner() munfall.Actor {
 // row was found.
 func (t *ClearRowTrait) ResolveOrder(order *munfall.Order) {
 	if order.Order == t.order {
-		rows := order.Value.([]uint)
 		w := t.world
 		w.AddFrameEndTask(func() {
-			wm := w.WorldMap()
-
-			pos := &munfall.MPos{}
-			for _, row := range rows {
-				pos.X = 0
-				pos.Y = row
-
-				full := true
-				rowsize := 0
-				for {
-					if !wm.InsideMapMPos(pos) {
-						break
-					}
-
-					cell := wm.CellAt(pos)
-					if len(cell.Space()) == 0 {
-						full = false
-						break
-					}
-
-					pos.X++
-					rowsize++
+			row := uint(0)
+			for {
+				occupied, size := t.checkRow(row)
+				if occupied <= 0 {
+					// We stop when we are outside the map or we hit an empty row.
+					break
 				}
 
-				if full {
-					pos.X = 0
-					actors := make(map[uint]munfall.Actor)
-					for {
-						munfall.Logger.Info("Run", pos)
-						if !wm.InsideMapMPos(pos) {
-							munfall.Logger.Info("End")
-							break
-						}
-
-						for _, space := range wm.CellAt(pos).Space() {
-							actor := space.Trait().Owner()
-							actors[actor.ActorID()] = actor
-						}
-
-						pos.X++
-					}
-
-					for _, actor := range actors {
-						wm.Deregister(actor)
-					}
-
-					w.AddFrameEndTask(func() {
-						for _, actor := range actors {
-							theGame.ActorRegistry().DisposeActor(actor, w)
-						}
-					})
-
-					actors = make(map[uint]munfall.Actor)
-				RowClearerOuter:
-					for {
-						empty := false
-						for {
-							// If we are out of X bounds.
-							if !wm.InsideMapMPos(pos) {
-								pos.X = 0
-								pos.Y++
-								// If we are out of Y bounds.
-								if !wm.InsideMapMPos(pos) {
-									break RowClearerOuter
-								}
-
-								break
-							}
-
-							// Get all actors in this cell.
-							cell := wm.CellAt(pos)
-							if len(cell.Space()) != 0 {
-								empty = false
-								for _, space := range cell.Space() {
-									actor := space.Trait().Owner()
-									actors[actor.ActorID()] = actor
-								}
-							}
-
-							pos.X++
-						}
-
-						// We hit an empty row so we can exit early.
-						if empty {
-							break
-						}
-					}
-
-					order := &munfall.Order{
-						Order: t.moveorder,
-						Value: -1,
-					}
-
-					// Issue a move order to every actor above the row on the y axis.
-					for _, actor := range actors {
-						w.IssueOrder(actor, order)
-					}
+				if occupied == size {
+					t.clearRow(row)
+					t.collapse(row)
 				}
+
+				row++
 			}
 		})
 	}
+}
+
+// checkRow calculates the occupied cells in the row and the row size.
+// returns -1 -1 if the row is outside the map.
+func (t *ClearRowTrait) checkRow(row uint) (int, int) {
+	pos := munfall.MPos{X: 0, Y: row}
+	if !t.world.WorldMap().InsideMapMPos(&pos) {
+		return -1, -1
+	}
+
+	nonemptycells := 0
+	rowsize := 0
+	for {
+		if !t.world.WorldMap().InsideMapMPos(&pos) {
+			break
+		}
+
+		cell := t.world.WorldMap().CellAt(&pos)
+		if len(cell.Space()) != 0 {
+			nonemptycells++
+		}
+
+		pos.X++
+		rowsize++
+	}
+
+	return nonemptycells, rowsize
+}
+
+// clearRow iterates over a row and deletes all actors that take space in it.
+func (t *ClearRowTrait) clearRow(row uint) {
+	pos := munfall.MPos{X: 0, Y: row}
+	for {
+		if !t.world.WorldMap().InsideMapMPos(&pos) {
+			break
+		}
+
+		cell := t.world.WorldMap().CellAt(&pos)
+		if len(cell.Space()) != 0 {
+			for _, space := range cell.Space() {
+				actor := space.Trait().Owner()
+				munfall.Logger.Info(actor)
+				// We just kill every actor that we find in the space, we never do it twice
+				// as by design we don't have an actor that takes more space then 1 cell.
+				actor.Kill()
+				theGame.ActorRegistry().DisposeActor(t.owner, t.world)
+			}
+		}
+
+		pos.X++
+	}
+}
+
+// collapse moves all the actors in the specified row down one cell,
+// returns true if the operation succeeded.
+func (t *ClearRowTrait) collapse(row uint) bool {
+	pos := munfall.MPos{X: 0, Y: row}
+	down := t.world.WorldMap().ConvertToWPos(&munfall.MPos{X: 1, Y: 0})
+	if !t.world.WorldMap().InsideMapMPos(&pos) {
+		return false
+	}
+
+	for {
+		if !t.world.WorldMap().InsideMapMPos(&pos) {
+			break
+		}
+
+		cell := t.world.WorldMap().CellAt(&pos)
+		if len(cell.Space()) == 0 {
+			for _, space := range cell.Space() {
+				actor := space.Trait().Owner()
+				t.world.WorldMap().GetPath(actor, actor.Pos(), actor.Pos().Subtract(down))
+			}
+		}
+
+		pos.X++
+	}
+
+	return true
 }
